@@ -70,6 +70,14 @@ class RepoFetcher
 end
 
 class Git
+  def self.setup
+    Command.run 'git config --global user.email "gemupdater@gemupdater.com"'
+    Command.run 'git config --global user.name gemupdater'
+    Command.run 'git config --global'\
+                " url.https://#{GITHUB_TOKEN}:x-oauth-basic@github.com/.insteadof"\
+                ' git@github.com:'
+  end
+
   def self.change_branch(branch)
     working_branch = current_branch
     if branch_exists? branch
@@ -178,9 +186,7 @@ GemUpdater = Struct.new(:repo) do
     end
 end
 
-Command.run "git config --global='"\
-            "url.https://#{GITHUB_TOKEN}:x-oauth-basic@github.com/"\
-            ".insteadof=git@github.com:'"
+Git.setup
 REPOSITORIES.each do |repo|
   RepoFetcher.new(repo).pull
   GemUpdater.new(repo).update_gems
