@@ -102,6 +102,7 @@ class Git
   end
 
   def self.commit(message)
+    Command.run 'git add .'
     Command.run "git commit -a -m '#{message}'"
   end
 
