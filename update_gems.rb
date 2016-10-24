@@ -127,7 +127,11 @@ class Git
   end
 end
 
-GemUpdater = Struct.new(:repo) do
+class GemUpdater
+  def initialize(repo)
+    @repo = repo
+  end
+
   def update_gems
     Dir.chdir(repo.split('/').last) do
       Command.run 'git checkout master'
@@ -140,6 +144,8 @@ GemUpdater = Struct.new(:repo) do
   end
 
   private
+
+    attr_reader :repo
 
     def outdated_gems
       @outdated_gems ||=
