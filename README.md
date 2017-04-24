@@ -1,4 +1,9 @@
+<p align="center">
+<img src="logo/gem_updater.png" alt="GemUpdater" title="GemUpdater" />
+</p>
+
 # gem_updater
+
 gem_updater creates automatic pull-requests with gem updates.
 
 ``` shell
