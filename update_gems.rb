@@ -21,9 +21,9 @@ end
 
 Log =
   if ENV['DEBUG'] || ENV['VERBOSE']
-    Logger.new(STDOUT).tap { |logger| logger.level = Logger::DEBUG }
-  else
     Logger.new STDOUT
+  else
+    Logger.new(STDOUT).tap { |logger| logger.level = Logger::INFO }
   end
 
 class Command
@@ -196,8 +196,9 @@ class GemUpdater
 end
 
 def update_gems
-  Dir.mkdir 'tmp' unless Dir.exist? 'tmp'
-  Dir.chdir 'tmp' do
+  directory = 'repositories_cache'
+  Dir.mkdir directory unless Dir.exist? directory
+  Dir.chdir directory do
     REPOSITORIES.each do |repo|
       RepoFetcher.new(repo).pull
       GemUpdater.new(repo).update_gems
