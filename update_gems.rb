@@ -40,7 +40,7 @@ class RepoFetcher
   attr_reader :repo
 
   def initialize(repo)
-    fail 'not a correct repo format' unless repo =~ %r{\A\w+\/\w+\z}
+    raise "#{repo} is not a correct repo format" unless repo =~ %r{\A\w+\/\w+\z}
     @repo = repo
   end
 
@@ -81,10 +81,7 @@ class Git
   end
 
   def self.current_branch
-    `#{git} branch`.split("\n")
-      .select { |line| line.start_with? '* ' }
-      .first
-      .gsub('* ', '')
+    Command.run("#{git} rev-parse --abbrev-ref HEAD").strip
   end
 
   def self.commit(message)
@@ -116,6 +113,10 @@ class Git
     Command.run "#{git} clone https://github.com/#{repo}.git"
   end
 
+  def self.reset
+    Command.run "#{git} reset --hard"
+  end
+
   def self.git
     'git -c user.email=gemupdater@gemupdater.com -c user.name=GemUpdater' +
       if GITHUB_TOKEN
@@ -136,7 +137,8 @@ class GemUpdater
     Dir.chdir(repo.split('/').last) do
       Command.run 'git checkout master'
       Git.pull
-      Command.run "BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle install"
+      Command.run 'bundle install'
+      Git.reset
       outdated_gems.take(UPDATE_LIMIT).each do |gem|
         update_single_gem gem
       end
@@ -149,7 +151,7 @@ class GemUpdater
 
     def outdated_gems
       @outdated_gems ||=
-        Command.run("BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle outdated --strict", approve_exitcode: false)
+        Command.run('bundle outdated --strict', approve_exitcode: false)
         .lines.map { |line| line.scan(/\ \ \*\ (\p{Graph}+)/) }
         .flatten.compact
     end
@@ -158,7 +160,7 @@ class GemUpdater
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
         robust_master_merge
-        Command.run "BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle update --source #{gem}"
+        Command.run "bundle update --source #{gem}"
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
