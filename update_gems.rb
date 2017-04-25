@@ -19,30 +19,18 @@ else
   REPOSITORIES = ['schasse/outdated'].freeze
 end
 
-class LoggerWrapper
-  include Singleton
-
-  attr_reader :logger
-
-  def initialize
-    @logger = Logger.new STDOUT
-    if ENV['DEBUG'] || ENV['VERBOSE']
-      @logger.level = Logger::DEBUG
-    else
-      @logger.level = Logger::INFO
-    end
+Log =
+  if ENV['DEBUG'] || ENV['VERBOSE']
+    Logger.new(STDOUT).tap { |logger| logger.level = Logger::DEBUG }
+  else
+    Logger.new STDOUT
   end
-end
-
-def logger
-  LoggerWrapper.instance.logger
-end
 
 class Command
   def self.run(command, approve_exitcode: false)
-    logger.debug command
+    Log.debug command
     output = `#{command} 2>&1`
-    logger.debug output
+    Log.debug output
     raise ScriptError, 'COMMAND FAILED!' if approve_exitcode && !$?.success?
     output
   end
@@ -58,12 +46,12 @@ class RepoFetcher
 
   def pull
     if File.exist? dir_name
-      logger.info "repo #{repo} exists -> fetching remote"
+      Log.info "repo #{repo} exists -> fetching remote"
       Dir.chdir(dir_name) do
         Command.run 'git fetch'
       end
     else
-      logger.info "cloning repo #{repo}"
+      Log.info "cloning repo #{repo}"
       Git.clone_github repo
     end
   end
@@ -168,7 +156,7 @@ class GemUpdater
 
     def update_single_gem(gem)
       Git.change_branch "update_#{gem}" do
-        logger.info "updating gem #{gem}"
+        Log.info "updating gem #{gem}"
         robust_master_merge
         Command.run "BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle update --source #{gem}"
         Git.commit "update #{gem}"
