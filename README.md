@@ -2,9 +2,9 @@
 <img src="logo/gem_updater.png" alt="GemUpdater" title="GemUpdater" />
 </p>
 
-# gem_updater
+# GemUpdater
 
-gem_updater creates automatic pull-requests with gem updates.
+GemUpdater automatically creates pull-requests with gem updates.
 
 ``` shell
 docker run --rm \

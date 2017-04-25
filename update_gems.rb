@@ -5,13 +5,19 @@ require 'singleton'
 require 'net/http'
 require 'json'
 
-GITHUB_TOKEN = ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
-UPDATE_LIMIT = ENV['UPDATE_LIMIT'] || 2 # maximum number of gems to update
-REPOSITORIES =
-  (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
-  puts('please provide REPOSITORIES to update')
+if ENV['GEMUPDATER_ENV'] != 'test'
+    GITHUB_TOKEN = ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
+    UPDATE_LIMIT = ENV['UPDATE_LIMIT'] || 2 # maximum number of gems to update
+    REPOSITORIES =
+      (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
+      puts('please provide REPOSITORIES to update')
 
-raise 'missing configuration' if GITHUB_TOKEN.nil? || REPOSITORIES.nil?
+    raise 'missing configuration' if GITHUB_TOKEN.nil? || REPOSITORIES.nil?
+else
+  GITHUB_TOKEN = nil
+  UPDATE_LIMIT = 2
+  REPOSITORIES = ['schasse/outdated'].freeze
+end
 
 class LoggerWrapper
   include Singleton
@@ -70,52 +76,44 @@ class RepoFetcher
 end
 
 class Git
-  def self.setup
-    Command.run 'git config --global user.email "gemupdater@gemupdater.com"'
-    Command.run 'git config --global user.name gemupdater'
-    Command.run 'git config --global'\
-                " url.https://#{GITHUB_TOKEN}:x-oauth-basic@github.com/.insteadof"\
-                ' git@github.com:'
-  end
-
   def self.change_branch(branch)
     working_branch = current_branch
     if branch_exists? branch
-      Command.run "git checkout #{branch}"
+      Command.run "#{git} checkout #{branch}"
     else
-      Command.run "git checkout -b #{branch}"
+      Command.run "#{git} checkout -b #{branch}"
     end
     Git.push
     yield branch
-    Command.run "git checkout #{working_branch}"
+    Command.run "#{git} checkout #{working_branch}"
   end
 
   def self.branch_exists?(branch)
-    system "git rev-parse --verify #{branch}"
+    system "#{git} rev-parse --verify #{branch}"
   end
 
   def self.current_branch
-    `git branch`.split("\n")
+    `#{git} branch`.split("\n")
       .select { |line| line.start_with? '* ' }
       .first
       .gsub('* ', '')
   end
 
   def self.commit(message)
-    Command.run 'git add .'
-    Command.run "git commit -a -m '#{message}'"
+    Command.run "#{git} add ."
+    Command.run "#{git} commit -a -m '#{message}'"
   end
 
   def self.push
-    Command.run "git push origin #{current_branch}"
+    Command.run "#{git} push origin #{current_branch}"
   end
 
   def self.pull
-    Command.run "git pull origin #{current_branch}"
+    Command.run "#{git} pull origin #{current_branch}"
   end
 
   def self.merge(branch)
-    Command.run "GIT_MERGE_AUTOEDIT=no git pull origin #{branch}"
+    Command.run "GIT_MERGE_AUTOEDIT=no #{git} pull origin #{branch}"
   end
 
   def self.pull_request(message)
@@ -123,7 +121,17 @@ class Git
   end
 
   def self.checkout(branch, file)
-    Command.run "git checkout #{branch} #{file}"
+    Command.run "#{git} checkout #{branch} #{file}"
+  end
+
+  def self.git
+    'git -c user.email=gemupdater@gemupdater.com -c user.name=GemUpdater' +
+      if GITHUB_TOKEN
+        " -c url.https://#{GITHUB_TOKEN}:x-oauth-basic@"\
+        'github.com/.insteadof=https://github.com/'
+      else
+        ''
+      end
   end
 end
 
@@ -136,7 +144,7 @@ class GemUpdater
     Dir.chdir(repo.split('/').last) do
       Command.run 'git checkout master'
       Git.pull
-      Command.run 'bundle install'
+      Command.run "BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle install"
       outdated_gems.take(UPDATE_LIMIT).each do |gem|
         update_single_gem gem
       end
@@ -149,7 +157,7 @@ class GemUpdater
 
     def outdated_gems
       @outdated_gems ||=
-        Command.run('bundle outdated --strict', approve_exitcode: false)
+        Command.run("BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle outdated --strict", approve_exitcode: false)
         .lines.map { |line| line.scan(/\ \ \*\ (\p{Graph}+)/) }
         .flatten.compact
     end
@@ -158,7 +166,7 @@ class GemUpdater
       Git.change_branch "update_#{gem}" do
         logger.info "updating gem #{gem}"
         robust_master_merge
-        Command.run "bundle update --source #{gem}"
+        Command.run "BUNDLE_GEMFILE=#{`pwd`.strip}/Gemfile bundle update --source #{gem}"
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
@@ -193,8 +201,16 @@ class GemUpdater
     end
 end
 
-Git.setup
-REPOSITORIES.each do |repo|
-  RepoFetcher.new(repo).pull
-  GemUpdater.new(repo).update_gems
+def update_gems
+  Dir.mkdir 'tmp' unless Dir.exist? 'tmp'
+  Dir.chdir 'tmp' do
+    REPOSITORIES.each do |repo|
+      RepoFetcher.new(repo).pull
+      GemUpdater.new(repo).update_gems
+    end
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  update_gems
 end
