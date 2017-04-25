@@ -6,7 +6,8 @@
 
 # GemUpdater
 
-GemUpdater automatically creates pull-requests with gem updates.
+GemUpdater automatically creates pull-requests with gem updates. Just
+run the following.
 
 ``` shell
 docker run --rm \
@@ -14,3 +15,10 @@ docker run --rm \
   --env="REPOSITORIES='rails/rails rails/actioncable'" \
   schasse/gem_updater
 ```
+
+And a pull request per gem will be
+created. See
+[schasse/outdated#3](https://github.com/schasse/outdated/pull/3) as
+example pull request.
+
+![](https://github.com/schasse/gem_updater/blob/master/logo/example_pull_request.png)
