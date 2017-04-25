@@ -2,7 +2,7 @@
 <img src="logo/gem_updater.png" alt="GemUpdater" title="GemUpdater" />
 </p>
 
-[[Build Status](https://travis-ci.org/schasse/gem_updater.svg?branch=master)](https://travis-ci.org/schasse/gem_updater)!
+[![Build Status](https://travis-ci.org/schasse/gem_updater.svg?branch=master)](https://travis-ci.org/schasse/gem_updater)
 
 # GemUpdater
 
