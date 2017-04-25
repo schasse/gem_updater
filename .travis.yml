@@ -1,0 +1,8 @@
+sudo: false
+language: ruby
+rvm:
+  - 2.4.1
+before_install: gem install rspec -v 3.5.0
+script: rspec spec
+notifications:
+    email: false
