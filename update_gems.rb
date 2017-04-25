@@ -64,7 +64,7 @@ class RepoFetcher
       end
     else
       logger.info "cloning repo #{repo}"
-      Command.run "git clone git@github.com:#{repo}.git"
+      Git.clone_github repo
     end
   end
 
@@ -124,13 +124,17 @@ class Git
     Command.run "#{git} checkout #{branch} #{file}"
   end
 
+  def self.clone_github(repo)
+    Command.run "#{git} clone https://github.com/#{repo}.git"
+  end
+
   def self.git
     'git -c user.email=gemupdater@gemupdater.com -c user.name=GemUpdater' +
       if GITHUB_TOKEN
         " -c url.https://#{GITHUB_TOKEN}:x-oauth-basic@"\
         'github.com/.insteadof=https://github.com/'
       else
-        ''
+        ' -c url.http://github.com/.insteadof=https://github.com/'
       end
   end
 end
