@@ -2,7 +2,7 @@ require 'spec_helper'
 
 RSpec.describe '#update_gems' do
   it 'pushes a new branch  and creates a pr for the repository' do
-    expect(Git).to receive(:push).exactly(3).times
+    expect(Git).to receive(:push).exactly(4).times
     expect(Git).to receive(:pull_request).twice
     update_gems
   end
@@ -25,9 +25,9 @@ RSpec.describe Outdated do
             * rest-client (newest 2.0.2, installed 2.0.0)
             * tilt (newest 2.0.7, installed 2.0.6)
             * unf_ext (newest 0.0.7.4, installed 0.0.7.2)
-        OUT
+OUT
       expect(Command)
-        .to receive(:run).with('bundle outdated --patch', anything)
+        .to receive(:run).with('bundle outdated --minor', anything)
         .and_return <<~OUT
           Fetching gem metadata from https://rubygems.org/............
           Fetching version metadata from https://rubygems.org/.
@@ -43,10 +43,10 @@ RSpec.describe Outdated do
             * rest-client (newest 2.0.2, installed 2.0.0)
             * tilt (newest 2.0.7, installed 2.0.6)
             * unf_ext (newest 0.0.7.4, installed 0.0.7.2)
-            OUT
-            expect(Command)
-              .to receive(:run).with('bundle outdated --patch', anything)
-                   .and_return <<~OUT
+OUT
+      expect(Command)
+        .to receive(:run).with('bundle outdated --major', anything)
+        .and_return <<~OUT
           Fetching gem metadata from https://rubygems.org/............
           Fetching version metadata from https://rubygems.org/.
           Resolving dependencies...
@@ -61,19 +61,30 @@ RSpec.describe Outdated do
             * rest-client (newest 2.0.2, installed 2.0.0)
             * tilt (newest 2.0.7, installed 2.0.6)
             * unf_ext (newest 0.0.7.4, installed 0.0.7.2)
-
-        OUT
+OUT
     end
 
     it 'sorts for the most important versions' do
-      expect(Outdated.new.outdated_gems).to eq []
+      expect(Outdated.outdated_gems)
+        .to eq [
+              { gem: 'domain_name', segment: 'patch', outdated_level: 9275 },
+              { gem: 'rest-client', segment: 'patch', outdated_level: 2 },
+              { gem: 'unf_ext', segment: 'patch', outdated_level: 2 },
+              { gem: 'dotenv', segment: 'patch', outdated_level: 1 },
+              { gem: 'puma', segment: 'patch', outdated_level: 1 },
+              { gem: 'tilt', segment: 'patch', outdated_level: 1 },
+              { gem: 'docker_registry2', segment: 'minor', outdated_level: 30 },
+              { gem: 'bugsnag', segment: 'minor', outdated_level: 11 },
+              { gem: 'diff-lcs', segment: 'minor', outdated_level: -112 }
+            ]
+
     end
   end
 
   describe '#outdated_level' do
     it 'calculates the correct level' do
-      expect(Outdated.new.outdated_level '2.0.1', '2.0.0').to eq 1
-      expect(Outdated.new.outdated_level '2.1.1', '2.0.0').to eq 11
+      expect(Outdated.outdated_level '2.0.1', '2.0.0').to eq 1
+      expect(Outdated.outdated_level '2.1.1', '2.0.0').to eq 11
     end
   end
 end

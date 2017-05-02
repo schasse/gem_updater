@@ -146,8 +146,8 @@ class GemUpdater
     RepoFetcher.new(repo).in_repo do
       Command.run 'bundle install'
       update_ruby
-      outdated_gems.take(UPDATE_LIMIT).each do |gem|
-        update_single_gem gem
+      Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
+        update_single_gem gem_stats
       end
     end
   end
@@ -168,11 +168,13 @@ class GemUpdater
       end
     end
 
-    def update_single_gem(gem)
+    def update_single_gem(gem_stats)
+      gem = gem_stats[:gem]
+      segment = gem_stats[:segment]
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
         robust_master_merge
-        Command.run "bundle update --source #{gem}"
+        Command.run "bundle update --source --#{segment} #{gem}"
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
@@ -208,34 +210,37 @@ class GemUpdater
 end
 
 class Outdated
-  def outdated_gems
-    outdated('patch') + outdated('minor') + outdated('major')
-  end
+  class << self
+    def outdated_gems
+      (outdated('patch') + outdated('minor') + outdated('major'))
+        .uniq { |gem_stats| gem_stats[:gem] }
+    end
 
-  def outdated(segment)
-    output =
-      if segment.nil?
-        Command.run('bundle outdated', approve_exitcode: false)
-      else
-        Command.run("bundle outdated --#{segment}", approve_exitcode: false)
-      end
-    output.lines.map do |line|
-      regex = /\ \ \*\ (\p{Graph}+)\ \(newest\ ([\d\.]+)\,\ installed ([\d\.]+)/
-      gem, newest, installed = line.scan(regex)&.first
-      unless gem.nil?
-        {
-          gem: gem,
-          segment: segment,
-          outdated_level: outdated_level(newest, installed)
-        }
-      end
-    end.compact.sort_by { |g| g['outdated_level'] }
-  end
+    def outdated(segment)
+      output =
+        if segment.nil?
+          Command.run('bundle outdated', approve_exitcode: false)
+        else
+          Command.run("bundle outdated --#{segment}", approve_exitcode: false)
+        end
+      output.lines.map do |line|
+        regex = /\ \ \*\ (\p{Graph}+)\ \(newest\ ([\d\.]+)\,\ installed ([\d\.]+)/
+        gem, newest, installed = line.scan(regex)&.first
+        unless gem.nil?
+          {
+            gem: gem,
+            segment: segment,
+            outdated_level: outdated_level(newest, installed)
+          }
+        end
+      end.compact.sort_by { |g| -g[:outdated_level] }
+    end
 
-  def outdated_level(newest, installed)
-    new_int = newest.gsub('.', '').to_i
-    installed_int = installed.gsub('.', '').to_i
-    new_int - installed_int
+    def outdated_level(newest, installed)
+      new_int = newest.gsub('.', '').to_i
+      installed_int = installed.gsub('.', '').to_i
+      new_int - installed_int
+    end
   end
 end
 
