@@ -40,7 +40,6 @@ class RepoFetcher
   attr_reader :repo
 
   def initialize(repo)
-    raise "#{repo} is not a correct repo format" unless repo =~ %r{\A\w+\/\w+\z}
     @repo = repo
   end
 
