@@ -43,19 +43,28 @@ class RepoFetcher
     @repo = repo
   end
 
-  def pull
-    if File.exist? dir_name
-      Log.info "repo #{repo} exists -> fetching remote"
-      Dir.chdir(dir_name) do
-        Command.run 'git fetch'
-      end
-    else
-      Log.info "cloning repo #{repo}"
-      Git.clone_github repo
+  def in_repo
+    pull
+    Dir.chdir(repo.split('/').last) do
+      Command.run 'git checkout master'
+      Git.pull
+      yield
     end
   end
 
   private
+
+    def pull
+      if File.exist? dir_name
+        Log.info "repo #{repo} exists -> fetching remote"
+        Dir.chdir(dir_name) do
+          Command.run 'git fetch'
+        end
+      else
+        Log.info "cloning repo #{repo}"
+        Git.clone_github repo
+      end
+    end
 
     def dir_name
       repo.split('/').last
@@ -133,13 +142,11 @@ class GemUpdater
   end
 
   def update_gems
-    Dir.chdir(repo.split('/').last) do
-      Command.run 'git checkout master'
-      Git.pull
+    RepoFetcher.new(repo).in_repo do
       Command.run 'bundle install'
-      Git.reset
-      outdated_gems.take(UPDATE_LIMIT).each do |gem|
-        update_single_gem gem
+      update_ruby
+      Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
+        update_single_gem gem_stats
       end
     end
   end
@@ -148,18 +155,25 @@ class GemUpdater
 
     attr_reader :repo
 
-    def outdated_gems
-      @outdated_gems ||=
-        Command.run('bundle outdated --strict', approve_exitcode: false)
-        .lines.map { |line| line.scan(/\ \ \*\ (\p{Graph}+)/) }
-        .flatten.compact
+    def update_ruby
+      Git.change_branch 'update_ruby' do
+        Log.info 'updating ruby version'
+        robust_master_merge
+        Command.run 'bundle update --ruby'
+        Git.commit 'update ruby version'
+        Git.push
+        sleep 2 # GitHub needs some time ;)
+        Git.pull_request('[GemUpdater] update ruby version')
+      end
     end
 
-    def update_single_gem(gem)
+    def update_single_gem(gem_stats)
+      gem = gem_stats[:gem]
+      segment = gem_stats[:segment]
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
         robust_master_merge
-        Command.run "bundle update --source #{gem}"
+        Command.run "bundle update --source --#{segment} #{gem}"
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
@@ -194,12 +208,46 @@ class GemUpdater
     end
 end
 
+class Outdated
+  class << self
+    def outdated_gems
+      (outdated('patch') + outdated('minor') + outdated('major'))
+        .uniq { |gem_stats| gem_stats[:gem] }
+    end
+
+    def outdated(segment)
+      output =
+        if segment.nil?
+          Command.run('bundle outdated', approve_exitcode: false)
+        else
+          Command.run("bundle outdated --#{segment}", approve_exitcode: false)
+        end
+      output.lines.map do |line|
+        regex = /\ \ \*\ (\p{Graph}+)\ \(newest\ ([\d\.]+)\,\ installed ([\d\.]+)/
+        gem, newest, installed = line.scan(regex)&.first
+        unless gem.nil?
+          {
+            gem: gem,
+            segment: segment,
+            outdated_level: outdated_level(newest, installed)
+          }
+        end
+      end.compact.sort_by { |g| -g[:outdated_level] }
+    end
+
+    def outdated_level(newest, installed)
+      new_int = newest.gsub('.', '').to_i
+      installed_int = installed.gsub('.', '').to_i
+      new_int - installed_int
+    end
+  end
+end
+
 def update_gems
   directory = 'repositories_cache'
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
     REPOSITORIES.each do |repo|
-      RepoFetcher.new(repo).pull
       GemUpdater.new(repo).update_gems
     end
   end
