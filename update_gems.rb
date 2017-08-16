@@ -27,7 +27,7 @@ Log =
   end
 
 class Command
-  def self.run(command, approve_exitcode: false)
+  def self.run(command, approve_exitcode: true)
     Log.debug command
     output = `#{command} 2>&1`
     Log.debug output
@@ -72,41 +72,50 @@ class RepoFetcher
 end
 
 class Git
+  def self.setup
+    Command.run 'git config --global user.email "gemupdater@gemupdater.com"'
+    Command.run 'git config --global user.name gemupdater'
+    if GITHUB_TOKEN
+      Command.run 'git config --global'\
+                  " url.https://#{GITHUB_TOKEN}:x-oauth-basic@github.com/."\
+                  'insteadof git@github.com:'
+    end
+  end
+
   def self.change_branch(branch)
     working_branch = current_branch
     if branch_exists? branch
-      Command.run "#{git} checkout #{branch}"
+      Command.run "git checkout #{branch}"
     else
-      Command.run "#{git} checkout -b #{branch}"
+      Command.run "git checkout -b #{branch}"
     end
-    Git.push
     yield branch
-    Command.run "#{git} checkout #{working_branch}"
+    Command.run "git checkout #{working_branch}"
   end
 
   def self.branch_exists?(branch)
-    system "#{git} rev-parse --verify #{branch}"
+    system "git rev-parse --verify #{branch}"
   end
 
   def self.current_branch
-    Command.run("#{git} rev-parse --abbrev-ref HEAD").strip
+    Command.run('git rev-parse --abbrev-ref HEAD').strip
   end
 
   def self.commit(message)
-    Command.run "#{git} add ."
-    Command.run "#{git} commit -a -m '#{message}'"
+    Command.run 'git add .'
+    Command.run "git commit -a -m '#{message}'", approve_exitcode: false
   end
 
   def self.push
-    Command.run "#{git} push origin #{current_branch}"
+    Command.run "git push origin #{current_branch}"
   end
 
   def self.pull
-    Command.run "#{git} pull origin #{current_branch}"
+    Command.run "git pull origin #{current_branch}"
   end
 
   def self.merge(branch)
-    Command.run "GIT_MERGE_AUTOEDIT=no #{git} pull origin #{branch}"
+    Command.run "GIT_MERGE_AUTOEDIT=no git pull origin #{branch}"
   end
 
   def self.pull_request(message)
@@ -114,25 +123,15 @@ class Git
   end
 
   def self.checkout(branch, file)
-    Command.run "#{git} checkout #{branch} #{file}"
+    Command.run "git checkout #{branch} #{file}"
   end
 
   def self.clone_github(repo)
-    Command.run "#{git} clone https://github.com/#{repo}.git"
+    Command.run "git clone git@github.com:#{repo}.git"
   end
 
   def self.reset
-    Command.run "#{git} reset --hard"
-  end
-
-  def self.git
-    'git -c user.email=gemupdater@gemupdater.com -c user.name=GemUpdater' +
-      if GITHUB_TOKEN
-        " -c url.https://#{GITHUB_TOKEN}:x-oauth-basic@"\
-        'github.com/.insteadof=https://github.com/'
-      else
-        ' -c url.http://github.com/.insteadof=https://github.com/'
-      end
+    Command.run 'git reset --hard'
   end
 end
 
@@ -144,7 +143,7 @@ class GemUpdater
   def update_gems
     RepoFetcher.new(repo).in_repo do
       Command.run 'bundle install'
-      update_ruby
+      # update_ruby
       Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
         update_single_gem gem_stats
       end
@@ -173,7 +172,7 @@ class GemUpdater
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
         robust_master_merge
-        Command.run "bundle update --source --#{segment} #{gem}"
+        Command.run "bundle update --#{segment} #{gem}"
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
@@ -244,6 +243,7 @@ class Outdated
 end
 
 def update_gems
+  Git.setup unless ENV['GEMUPDATER_ENV'] == 'test'
   directory = 'repositories_cache'
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
