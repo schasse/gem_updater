@@ -3,8 +3,8 @@ language: ruby
 rvm:
   - 2.4.1
 before_install:
-  # - gem uninstall bundler
-  - gem install bundler -v 1.14.6
+  - gem uninstall bundler
+  - gem install bundler -v 1.15.3
   - gem install rspec -v 3.5.0
 script: rspec
 env: VERBOSE=true
