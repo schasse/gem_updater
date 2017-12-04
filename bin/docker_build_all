@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+git_dirty =
+  !`command git status --porcelain 2> /dev/null | tail -n1`.strip.empty?
+
+if git_dirty
+  puts 'Git is dirty!'
+  exit 1
+end
+
+version2branch =
+  {
+    'latest' => 'master',
+    '2.4.1' => 'master',
+    '2.3.1' => 'ruby231'
+  }
+
+version2branch.each do |version, branch|
+  system 'git fetch'
+  system "git checkout #{branch}"
+  system 'git pull'
+  system "docker build --tag schasse/gem_updater:#{version} ."
+end

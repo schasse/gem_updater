@@ -7,7 +7,7 @@ require 'json'
 
 if ENV['GEMUPDATER_ENV'] != 'test'
     GITHUB_TOKEN = ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
-    UPDATE_LIMIT = ENV['UPDATE_LIMIT'] || 2 # maximum number of gems to update
+    UPDATE_LIMIT = ENV['UPDATE_LIMIT'].to_i || 2 # maximum number of gems to update
     REPOSITORIES =
       (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
       puts('please provide REPOSITORIES to update')
@@ -249,7 +249,7 @@ class Outdated
 end
 
 def update_gems
-  Git.setup
+  Git.setup unless ENV['GEMUPDATER_ENV'] == 'test'
   directory = 'repositories_cache'
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
