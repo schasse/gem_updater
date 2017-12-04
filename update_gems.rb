@@ -79,6 +79,9 @@ class Git
       Command.run 'git config --global'\
                   " url.https://#{GITHUB_TOKEN}:x-oauth-basic@github.com/."\
                   'insteadof git@github.com:'
+    else
+      Command.run 'git config --global'\
+                  ' url.https://github.com/.insteadof git@github.com:'
     end
   end
 
@@ -94,7 +97,8 @@ class Git
   end
 
   def self.branch_exists?(branch)
-    system "git rev-parse --verify #{branch}"
+    system("git rev-parse --verify #{branch}") ||
+      system("git rev-parse --verify origin/#{branch}")
   end
 
   def self.current_branch
@@ -119,7 +123,9 @@ class Git
   end
 
   def self.pull_request(message)
-    Command.run "GITHUB_TOKEN=#{GITHUB_TOKEN} hub pull-request -m '#{message}'"
+    Command.run(
+      "GITHUB_TOKEN=#{GITHUB_TOKEN} hub pull-request -m '#{message}'",
+      approve_exitcode: false)
   end
 
   def self.checkout(branch, file)
@@ -243,7 +249,7 @@ class Outdated
 end
 
 def update_gems
-  Git.setup unless ENV['GEMUPDATER_ENV'] == 'test'
+  Git.setup
   directory = 'repositories_cache'
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
