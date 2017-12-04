@@ -97,7 +97,8 @@ class Git
   end
 
   def self.branch_exists?(branch)
-    system "git rev-parse --verify #{branch}"
+    system("git rev-parse --verify #{branch}") ||
+      system("git rev-parse --verify origin/#{branch}")
   end
 
   def self.current_branch
@@ -122,7 +123,9 @@ class Git
   end
 
   def self.pull_request(message)
-    Command.run "GITHUB_TOKEN=#{GITHUB_TOKEN} hub pull-request -m '#{message}'"
+    Command.run(
+      "GITHUB_TOKEN=#{GITHUB_TOKEN} hub pull-request -m '#{message}'",
+      approve_exitcode: false)
   end
 
   def self.checkout(branch, file)
