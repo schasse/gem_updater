@@ -1,2 +1,4 @@
 repositories_cache/*
 credentials/*
+*.swp
+*~
