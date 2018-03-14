@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe '#update_gems' do
-  it 'pushes a new branch  and creates a pr for the repository' do
+  it 'pushes a new branch and creates a pr for the repository' do
     expect(Git).to receive(:push).once
     expect(Git).to receive(:pull_request).once
     update_gems
