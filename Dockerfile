@@ -7,7 +7,7 @@ RUN cp hub-linux-amd64-2.2.3/bin/hub /usr/bin/
 
 ENV GEM_HOME /usr/local/lib/ruby/gems/2.5.1
 RUN gem uninstall bundler
-ENV BUNDLER_VERSION 1.16.1
+ENV BUNDLER_VERSION 1.15.4
 RUN gem install bundler --version $BUNDLER_VERSION
 ENV GEM_HOME /usr/local/bundle
 
