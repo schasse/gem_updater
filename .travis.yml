@@ -3,7 +3,7 @@ language: ruby
 rvm:
   - 2.5.1
 before_install:
-  - gem install bundler -v 1.16.1
+  - gem install bundler -v 1.16.2
   - gem install rspec -v 3.5.0
 script: rspec
 env: VERBOSE=true
