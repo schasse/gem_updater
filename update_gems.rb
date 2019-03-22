@@ -209,8 +209,8 @@ class GemUpdater
       from_version, to_version =
         Command.run('git diff --word-diff=plain master Gemfile.lock')
           .scan(/^\ *#{gem}\ \[\-\((.+)\)\-\]\{\+\((.+)\)\+\}$/).first
-      gem_uri(gem) + "/compare/v#{from_version}...v#{to_version} or " +
-        gem_uri(gem) + "/compare/#{from_version}...#{to_version}"
+      "#{gem_uri(gem)}/compare/v#{from_version}...v#{to_version} or " +
+        "#{gem_uri(gem)}/compare/#{from_version}...#{to_version}"
     end
 end
 
