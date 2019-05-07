@@ -12,12 +12,23 @@ if ENV['GEMUPDATER_ENV'] != 'test'
     REPOSITORIES =
       (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
       puts('please provide REPOSITORIES to update')
+    projects_strings =
+      ((ENV['PROJECTS'] && ENV['PROJECTS'].split(' ')) || [])
+
+    PROJECTS = {}
+
+    projects_strings.each do |project_string|
+      repo, project = project_string.split(':')
+      PROJECTS[repo] ||= []
+      PROJECTS[repo] << project
+    end
 
     raise 'missing configuration' if GITHUB_TOKEN.nil? || REPOSITORIES.nil?
 else
   GITHUB_TOKEN = nil
   UPDATE_LIMIT = 2
   REPOSITORIES = ['schasse/outdated'].freeze
+  PROJECTS = {}
 end
 
 Log =
@@ -32,7 +43,7 @@ class Command
     Log.debug command
     output = `#{command} 2>&1`
     Log.debug output
-    raise ScriptError, 'COMMAND FAILED!' if approve_exitcode && !$?.success?
+    raise ScriptError, "COMMAND FAILED: #{command}" if approve_exitcode && !$?.success?
     output
   end
 end
@@ -143,23 +154,35 @@ class Git
 end
 
 class GemUpdater
-  def initialize(repo)
+  def initialize(repo, project = nil)
     @repo = repo
+    @project = project
+  end
+
+  def run_gems_update
+    require 'pry'; binding.pry
+    Command.run 'bundle install'
+    # update_ruby
+    Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
+      update_single_gem gem_stats
+    end
   end
 
   def update_gems
     RepoFetcher.new(repo).in_repo do
-      Command.run 'bundle install'
-      # update_ruby
-      Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
-        update_single_gem gem_stats
+      if project
+        Dir.chdir(project) do
+          run_gems_update
+        end
+      else
+        run_gems_update
       end
     end
   end
 
   private
 
-    attr_reader :repo
+    attr_reader :repo, :project
 
     def update_ruby
       Git.change_branch 'update_ruby' do
@@ -175,9 +198,11 @@ class GemUpdater
 
     def update_single_gem(gem_stats)
       gem = gem_stats[:gem]
+      require 'pry'; binding.pry if gem == 'webpacker'
       segment = gem_stats[:segment]
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
+        require 'pry'; binding.pry if gem == 'webpacker'
         robust_master_merge
         Command.run "bundle update --#{segment} #{gem}"
         Git.commit "update #{gem}"
@@ -255,7 +280,13 @@ def update_gems
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
     REPOSITORIES.each do |repo|
-      GemUpdater.new(repo).update_gems
+      unless PROJECTS[repo].to_a.empty?
+        PROJECTS[repo].each do |project|
+          GemUpdater.new(repo, project).update_gems
+        end
+      else
+        GemUpdater.new(repo).update_gems
+      end
     end
   end
 end

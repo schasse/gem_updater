@@ -14,4 +14,4 @@ ENV GEM_HOME /usr/local/bundle
 RUN mkdir -p /mnt
 WORKDIR /mnt
 
-CMD /usr/bin/update_gems.rb
+CMD sleep 9999999999999
