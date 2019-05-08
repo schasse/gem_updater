@@ -5,31 +5,26 @@ require 'singleton'
 require 'net/http'
 require 'json'
 
-if ENV['GEMUPDATER_ENV'] != 'test'
-    GITHUB_TOKEN = ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
-    # maximum number of gems to update
-    UPDATE_LIMIT = ENV['UPDATE_LIMIT'].to_i || 2
-    REPOSITORIES =
-      (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
-      puts('please provide REPOSITORIES to update')
-    projects_strings =
-      ((ENV['PROJECTS'] && ENV['PROJECTS'].split(' ')) || [])
+GITHUB_TOKEN = ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
+# maximum number of gems to update
+UPDATE_LIMIT = ENV['UPDATE_LIMIT'].to_i || 2
+REPOSITORIES =
+  (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
+  puts('please provide REPOSITORIES to update')
+projects_strings =
+  ((ENV['PROJECTS'] && ENV['PROJECTS'].split(' ')) || [])
 
-    PROJECTS = {}
+PROJECTS = {}
 
-    projects_strings.each do |project_string|
-      repo, project = project_string.split(':')
-      PROJECTS[repo] ||= []
-      PROJECTS[repo] << project
-    end
-
-    raise 'missing configuration' if GITHUB_TOKEN.nil? || REPOSITORIES.nil?
-else
-  GITHUB_TOKEN = nil
-  UPDATE_LIMIT = 2
-  REPOSITORIES = ['schasse/outdated'].freeze
-  PROJECTS = {}
+projects_strings.each do |project_string|
+  repo, project = project_string.split(':')
+  PROJECTS[repo] ||= []
+  PROJECTS[repo] << project
 end
+
+raise 'missing configuration' if GITHUB_TOKEN.nil? || REPOSITORIES.nil?
+
+GITHUB_TOKEN = nil if ENV['GITHUB_TOKEN'] == 'test'
 
 Log =
   if ENV['DEBUG'] || ENV['VERBOSE']

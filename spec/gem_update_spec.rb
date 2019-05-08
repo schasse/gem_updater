@@ -1,10 +1,33 @@
 require 'spec_helper'
 
+ENV['GITHUB_TOKEN'] = 'test'
+ENV['UPDATE_LIMIT'] = 2
+ENV['REPOSITORIES'] = 'schasse/outdated'
+ENV['PROJECTS'] = nil
+
 RSpec.describe '#update_gems' do
-  it 'pushes a new branch and creates a pr for the repository' do
-    expect(Git).to receive(:push).once
-    expect(Git).to receive(:pull_request).once
-    update_gems
+  context 'with projects in repo' do
+    before do
+      ENV['PROJECTS'] = 'outdated:project_folder'
+    end
+
+    after do
+      ENV['PROJECTS'] = nil
+    end
+
+    it 'pushes a new branch and creates a pr for the repository' do
+      expect(Git).to receive(:push).once
+      expect(Git).to receive(:pull_request).once
+      update_gems
+    end
+  end
+
+  context 'without projects in repo' do
+    it 'pushes a new branch and creates a pr for the repository' do
+      expect(Git).to receive(:push).once
+      expect(Git).to receive(:pull_request).once
+      update_gems
+    end
   end
 end
 
