@@ -1,22 +1,16 @@
 require 'spec_helper'
 
-ENV['GITHUB_TOKEN'] = 'test'
-ENV['UPDATE_LIMIT'] = '2'
-ENV['REPOSITORIES'] = 'schasse/outdated'
-ENV['PROJECTS'] = nil
-
-require_relative '../update_gems'
+Log = Logger.new '/dev/null'
 
 RSpec.describe '#update_gems' do
   context 'with projects in repo' do
     before do
-      ENV['PROJECTS'] = 'outdated:project_folder'
-      require_relative '../update_gems'
-    end
-
-    after do
-      ENV['PROJECTS'] = nil
-      require_relative '../update_gems'
+      Configuration =
+        Config.new(
+          github_token: 'test',
+          update_limit: nil,
+          repositories: 'schasse/outdated',
+          projects: 'outdated:project_folder')
     end
 
     it 'pushes a new branch and creates a pr for the repository' do
@@ -27,6 +21,15 @@ RSpec.describe '#update_gems' do
   end
 
   context 'without projects in repo' do
+    before do
+      Configuration =
+        Config.new(
+          github_token: 'test',
+          update_limit: nil,
+          repositories: 'schasse/outdated',
+          projects: nil)
+    end
+
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
       expect(Git).to receive(:pull_request).once
@@ -36,6 +39,15 @@ RSpec.describe '#update_gems' do
 end
 
 RSpec.describe Outdated do
+  before do
+    Configuration =
+      Config.new(
+        github_token: 'test',
+        update_limit: nil,
+        repositories: 'schasse/outdated',
+        projects: nil)
+  end
+
   describe '#outdated_gems' do
     before do
       expect(Command)
