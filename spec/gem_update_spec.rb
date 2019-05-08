@@ -1,18 +1,22 @@
 require 'spec_helper'
 
 ENV['GITHUB_TOKEN'] = 'test'
-ENV['UPDATE_LIMIT'] = 2
+ENV['UPDATE_LIMIT'] = '2'
 ENV['REPOSITORIES'] = 'schasse/outdated'
 ENV['PROJECTS'] = nil
+
+require_relative '../update_gems'
 
 RSpec.describe '#update_gems' do
   context 'with projects in repo' do
     before do
       ENV['PROJECTS'] = 'outdated:project_folder'
+      require_relative '../update_gems'
     end
 
     after do
       ENV['PROJECTS'] = nil
+      require_relative '../update_gems'
     end
 
     it 'pushes a new branch and creates a pr for the repository' do

@@ -1,1 +1,1 @@
-require_relative '../update_gems'
+# spec helper
