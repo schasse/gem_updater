@@ -160,7 +160,6 @@ class GemUpdater
   end
 
   def run_gems_update
-    require 'pry'; binding.pry
     Command.run 'bundle install'
     # update_ruby
     Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
@@ -198,11 +197,9 @@ class GemUpdater
 
     def update_single_gem(gem_stats)
       gem = gem_stats[:gem]
-      require 'pry'; binding.pry if gem == 'webpacker'
       segment = gem_stats[:segment]
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
-        require 'pry'; binding.pry if gem == 'webpacker'
         robust_master_merge
         Command.run "bundle update --#{segment} #{gem}"
         Git.commit "update #{gem}"
