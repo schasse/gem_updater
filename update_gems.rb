@@ -10,10 +10,17 @@ class Config
 
   def initialize(github_token:, update_limit: ,repositories:, projects:)
     @github_token = github_token
+
     # maximum number of gems to update
-    @update_limit = update_limit.to_i || 2
-    @repositories =
-      (repositories.split(' ')) ||
+    @update_limit =
+      if update_limit.nil?
+        2
+      else
+        update_limit.to_i
+      end
+
+    @repositories = (repositories.split(' ')) || []
+
     projects_strings = (projects && projects.split(' ')) || []
 
     @projects = {}

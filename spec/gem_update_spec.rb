@@ -127,3 +127,48 @@ OUT
     end
   end
 end
+
+RSpec.describe Config do
+  context 'with a repo without projects' do
+    before do
+      @without_projects_config = {
+        github_token: 'test',
+        update_limit: nil,
+        repositories: 'schasse/outdated',
+        projects: nil
+      }
+    end
+
+    it 'parses configuration correctly' do
+      config = Config.new(@without_projects_config)
+      expect(config.github_token).to eq('test')
+      expect(config.update_limit).to eq(2)
+      expect(config.repositories).to eq(['schasse/outdated'])
+      expect(config.projects).to eq({})
+    end
+  end
+
+  context 'with multiple repos and multiple projects' do
+    before do
+      @with_projects_config = {
+        github_token: 'test',
+        update_limit: 4,
+        repositories: 'schasse/outdated schasse/ondate',
+        projects: 'outdated:project_folder ondate:folder1 ondate:folder2'
+      }
+    end
+
+    it 'parses configuration correctly' do
+      config = Config.new(@with_projects_config)
+      expect(config.github_token).to eq('test')
+      expect(config.update_limit).to eq(4)
+      expect(config.repositories).to eq(['schasse/outdated', 'schasse/ondate'])
+      expect(config.projects).to eq(
+        {
+          "outdated" => ['project_folder'],
+          "ondate" => ['folder1', 'folder2']
+        }
+      )
+    end
+  end
+end
