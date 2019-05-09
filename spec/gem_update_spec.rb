@@ -1,14 +1,53 @@
 require 'spec_helper'
 
+Log = Logger.new '/dev/null'
+
 RSpec.describe '#update_gems' do
-  it 'pushes a new branch and creates a pr for the repository' do
-    expect(Git).to receive(:push).once
-    expect(Git).to receive(:pull_request).once
-    update_gems
+  context 'with projects in repo' do
+    before do
+      Configuration =
+        Config.new(
+          github_token: 'test',
+          update_limit: nil,
+          repositories: 'schasse/outdated',
+          projects: 'outdated:project_folder')
+    end
+
+    it 'pushes a new branch and creates a pr for the repository' do
+      expect(Git).to receive(:push).once
+      expect(Git).to receive(:pull_request).once
+      update_gems
+    end
+  end
+
+  context 'without projects in repo' do
+    before do
+      Configuration =
+        Config.new(
+          github_token: 'test',
+          update_limit: nil,
+          repositories: 'schasse/outdated',
+          projects: nil)
+    end
+
+    it 'pushes a new branch and creates a pr for the repository' do
+      expect(Git).to receive(:push).once
+      expect(Git).to receive(:pull_request).once
+      update_gems
+    end
   end
 end
 
 RSpec.describe Outdated do
+  before do
+    Configuration =
+      Config.new(
+        github_token: 'test',
+        update_limit: nil,
+        repositories: 'schasse/outdated',
+        projects: nil)
+  end
+
   describe '#outdated_gems' do
     before do
       expect(Command)
@@ -85,6 +124,51 @@ OUT
     it 'calculates the correct level' do
       expect(Outdated.outdated_level '2.0.1', '2.0.0').to eq 1
       expect(Outdated.outdated_level '2.1.1', '2.0.0').to eq 11
+    end
+  end
+end
+
+RSpec.describe Config do
+  context 'with a repo without projects' do
+    before do
+      @without_projects_config = {
+        github_token: 'test',
+        update_limit: nil,
+        repositories: 'schasse/outdated',
+        projects: nil
+      }
+    end
+
+    it 'parses configuration correctly' do
+      config = Config.new(@without_projects_config)
+      expect(config.github_token).to eq('test')
+      expect(config.update_limit).to eq(2)
+      expect(config.repositories).to eq(['schasse/outdated'])
+      expect(config.projects).to eq({})
+    end
+  end
+
+  context 'with multiple repos and multiple projects' do
+    before do
+      @with_projects_config = {
+        github_token: 'test',
+        update_limit: 4,
+        repositories: 'schasse/outdated schasse/ondate',
+        projects: 'outdated:project_folder ondate:folder1 ondate:folder2'
+      }
+    end
+
+    it 'parses configuration correctly' do
+      config = Config.new(@with_projects_config)
+      expect(config.github_token).to eq('test')
+      expect(config.update_limit).to eq(4)
+      expect(config.repositories).to eq(['schasse/outdated', 'schasse/ondate'])
+      expect(config.projects).to eq(
+        {
+          "outdated" => ['project_folder'],
+          "ondate" => ['folder1', 'folder2']
+        }
+      )
     end
   end
 end

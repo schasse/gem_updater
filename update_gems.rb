@@ -5,34 +5,40 @@ require 'singleton'
 require 'net/http'
 require 'json'
 
-if ENV['GEMUPDATER_ENV'] != 'test'
-    GITHUB_TOKEN = ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
+class Config
+  attr_accessor :github_token, :update_limit, :repositories, :projects
+
+  def initialize(github_token:, update_limit: ,repositories:, projects:)
+    @github_token = github_token
+
     # maximum number of gems to update
-    UPDATE_LIMIT = ENV['UPDATE_LIMIT'].to_i || 2
-    REPOSITORIES =
-      (ENV['REPOSITORIES'] && ENV['REPOSITORIES'].split(' ')) ||
-      puts('please provide REPOSITORIES to update')
+    @update_limit =
+      if update_limit.nil?
+        2
+      else
+        update_limit.to_i
+      end
 
-    raise 'missing configuration' if GITHUB_TOKEN.nil? || REPOSITORIES.nil?
-else
-  GITHUB_TOKEN = nil
-  UPDATE_LIMIT = 2
-  REPOSITORIES = ['schasse/outdated'].freeze
-end
+    @repositories = (repositories.split(' ')) || []
 
-Log =
-  if ENV['DEBUG'] || ENV['VERBOSE']
-    Logger.new STDOUT
-  else
-    Logger.new(STDOUT).tap { |logger| logger.level = Logger::INFO }
+    projects_strings = (projects && projects.split(' ')) || []
+
+    @projects = {}
+
+    projects_strings.each do |project_string|
+      repo, project = project_string.split(':')
+      @projects[repo] ||= []
+      @projects[repo] << project
+    end
   end
+end
 
 class Command
   def self.run(command, approve_exitcode: true)
     Log.debug command
     output = `#{command} 2>&1`
     Log.debug output
-    raise ScriptError, 'COMMAND FAILED!' if approve_exitcode && !$?.success?
+    raise ScriptError, "COMMAND FAILED: #{command}" if approve_exitcode && !$?.success?
     output
   end
 end
@@ -76,9 +82,9 @@ class Git
   def self.setup
     Command.run 'git config --global user.email "gemupdater@gemupdater.com"'
     Command.run 'git config --global user.name gemupdater'
-    if GITHUB_TOKEN
+    if Configuration.github_token
       Command.run 'git config --global'\
-                  " url.https://#{GITHUB_TOKEN}:x-oauth-basic@github.com/."\
+                  " url.https://#{Configuration.github_token}:x-oauth-basic@github.com/."\
                   'insteadof git@github.com:'
     else
       Command.run 'git config --global'\
@@ -125,7 +131,7 @@ class Git
 
   def self.pull_request(message)
     Command.run(
-      "GITHUB_TOKEN=#{GITHUB_TOKEN} hub pull-request -m '#{message}'",
+      "GITHUB_TOKEN=#{CONFIGURATION.GITHUB_TOKEN} hub pull-request -m '#{message}'",
       approve_exitcode: false)
   end
 
@@ -143,23 +149,34 @@ class Git
 end
 
 class GemUpdater
-  def initialize(repo)
+  def initialize(repo, project = nil)
     @repo = repo
+    @project = project
+  end
+
+  def run_gems_update
+    Command.run 'bundle install'
+    # update_ruby
+    Outdated.outdated_gems.take(Configuration.update_limit).each do |gem_stats|
+      update_single_gem gem_stats
+    end
   end
 
   def update_gems
     RepoFetcher.new(repo).in_repo do
-      Command.run 'bundle install'
-      # update_ruby
-      Outdated.outdated_gems.take(UPDATE_LIMIT).each do |gem_stats|
-        update_single_gem gem_stats
+      if project
+        Dir.chdir(project) do
+          run_gems_update
+        end
+      else
+        run_gems_update
       end
     end
   end
 
   private
 
-    attr_reader :repo
+    attr_reader :repo, :project
 
     def update_ruby
       Git.change_branch 'update_ruby' do
@@ -254,12 +271,35 @@ def update_gems
   directory = 'repositories_cache'
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
-    REPOSITORIES.each do |repo|
-      GemUpdater.new(repo).update_gems
+    Configuration.repositories.each do |repo|
+      unless Configuration.projects[repo].to_a.empty?
+        Configuration.projects[repo].each do |project|
+          GemUpdater.new(repo, project).update_gems
+        end
+      else
+        GemUpdater.new(repo).update_gems
+      end
     end
   end
 end
 
 if $PROGRAM_NAME == __FILE__
+  ENV['REPOSITORIES'] || puts('please provide REPOSITORIES to update')
+  ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
+
+  Configuration = Config.new(
+    github_token: ENV['GITHUB_TOKEN'],
+    update_limit: ENV['UPDATE_LIMIT'],
+    repositories: ENV['REPOSITORIES'],
+    projects: ENV['PROJECTS']
+  )
+
+  Log =
+    if ENV['DEBUG'] || ENV['VERBOSE']
+      Logger.new STDOUT
+    else
+      Logger.new(STDOUT).tap { |logger| logger.level = Logger::INFO }
+    end
+
   update_gems
 end
