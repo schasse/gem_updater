@@ -131,7 +131,7 @@ class Git
 
   def self.pull_request(message)
     Command.run(
-      "GITHUB_TOKEN=#{CONFIGURATION.GITHUB_TOKEN} hub pull-request -m '#{message}'",
+      "GITHUB_TOKEN=#{Configuration.github_token} hub pull-request -m '#{message}'",
       approve_exitcode: false)
   end
 
