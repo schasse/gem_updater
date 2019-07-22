@@ -22,3 +22,6 @@ created. See
 example pull request.
 
 ![](https://github.com/schasse/gem_updater/blob/master/logo/example_pull_request.png)
+
+# Warning
+Don't run the tests locally outside of Docker since it adjusts the local gitconfig
