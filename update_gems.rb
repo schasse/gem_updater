@@ -200,8 +200,10 @@ class GemUpdater
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
-        Git.pull_request("[GemUpdater] update #{gem}\n\n"\
-          "#{gem_uri(gem)}\n\n#{change_log(gem)}")
+        Git.pull_request(
+          "[GemUpdater]#{!project.nil? ? "[" + project + "]" : ""} update "\
+          "#{gem}\n\n#{gem_uri(gem)}\n\n#{change_log(gem)}"
+        )
       end
     end
 

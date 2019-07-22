@@ -10,12 +10,14 @@ RSpec.describe '#update_gems' do
           github_token: 'test',
           update_limit: nil,
           repositories: 'schasse/outdated',
-          projects: 'outdated:project_folder')
+          projects: 'schasse/outdated:project_folder')
     end
 
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
-      expect(Git).to receive(:pull_request).once
+      expect(Git).to receive(:pull_request).with(
+        /\[GemUpdater\]\[project_folder\] update schlib/
+      )
       update_gems
     end
   end
@@ -32,7 +34,7 @@ RSpec.describe '#update_gems' do
 
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
-      expect(Git).to receive(:pull_request).once
+      expect(Git).to receive(:pull_request).with(/\[GemUpdater\] update schlib/)
       update_gems
     end
   end
@@ -154,7 +156,7 @@ RSpec.describe Config do
         github_token: 'test',
         update_limit: 4,
         repositories: 'schasse/outdated schasse/ondate',
-        projects: 'outdated:project_folder ondate:folder1 ondate:folder2'
+        projects: 'schasse/outdated:project_folder schasse/ondate:folder1 schasse/ondate:folder2'
       }
     end
 
@@ -165,8 +167,8 @@ RSpec.describe Config do
       expect(config.repositories).to eq(['schasse/outdated', 'schasse/ondate'])
       expect(config.projects).to eq(
         {
-          "outdated" => ['project_folder'],
-          "ondate" => ['folder1', 'folder2']
+          "schasse/outdated" => ['project_folder'],
+          "schasse/ondate" => ['folder1', 'folder2']
         }
       )
     end
