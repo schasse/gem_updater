@@ -1,3 +1,3 @@
-ENV['GEMUPDATER_ENV'] ||= 'test'
+# spec_helper
 
 require_relative '../update_gems'
