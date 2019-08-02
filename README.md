@@ -22,3 +22,13 @@ created. See
 example pull request.
 
 ![](https://github.com/schasse/gem_updater/blob/master/logo/example_pull_request.png)
+
+
+## Development
+
+Running the tests:
+
+``` shell
+docker build --tag schasse/gem_updater .
+docker run schasse/gem_updater bash -c 'rspec'
+```
