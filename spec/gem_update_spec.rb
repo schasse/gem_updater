@@ -9,30 +9,31 @@ RSpec.describe '#update_gems' do
         Config.new(
           github_token: 'test',
           update_limit: nil,
-          repositories: 'schasse/outdated',
-          projects: 'outdated:project_folder')
+          projects: 'schasse/outdated:project_folder')
     end
 
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
-      expect(Git).to receive(:pull_request).once
+      expect(Git).to receive(:pull_request).with(
+        /\[GemUpdater\]\[project_folder\] update schlib/
+      )
       update_gems
     end
   end
 
-  context 'without projects in repo' do
+  context 'without folders in project' do
     before do
       Configuration =
         Config.new(
           github_token: 'test',
           update_limit: nil,
-          repositories: 'schasse/outdated',
-          projects: nil)
+          projects: 'schasse/outdated'
+        )
     end
 
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
-      expect(Git).to receive(:pull_request).once
+      expect(Git).to receive(:pull_request).with(/\[GemUpdater\] update schlib/)
       update_gems
     end
   end
@@ -44,8 +45,7 @@ RSpec.describe Outdated do
       Config.new(
         github_token: 'test',
         update_limit: nil,
-        repositories: 'schasse/outdated',
-        projects: nil)
+        projects: 'schasse/outdated')
   end
 
   describe '#outdated_gems' do
@@ -134,8 +134,7 @@ RSpec.describe Config do
       @without_projects_config = {
         github_token: 'test',
         update_limit: nil,
-        repositories: 'schasse/outdated',
-        projects: nil
+        projects: 'schasse/outdated'
       }
     end
 
@@ -143,8 +142,7 @@ RSpec.describe Config do
       config = Config.new(@without_projects_config)
       expect(config.github_token).to eq('test')
       expect(config.update_limit).to eq(2)
-      expect(config.repositories).to eq(['schasse/outdated'])
-      expect(config.projects).to eq({})
+      expect(config.projects).to eq([Project.new('schasse/outdated')])
     end
   end
 
@@ -153,8 +151,7 @@ RSpec.describe Config do
       @with_projects_config = {
         github_token: 'test',
         update_limit: 4,
-        repositories: 'schasse/outdated schasse/ondate',
-        projects: 'outdated:project_folder ondate:folder1 ondate:folder2'
+        projects: 'schasse/outdated:project_folder schasse/ondate:folder1 schasse/ondate:folder2'
       }
     end
 
@@ -162,13 +159,12 @@ RSpec.describe Config do
       config = Config.new(@with_projects_config)
       expect(config.github_token).to eq('test')
       expect(config.update_limit).to eq(4)
-      expect(config.repositories).to eq(['schasse/outdated', 'schasse/ondate'])
       expect(config.projects).to eq(
-        {
-          "outdated" => ['project_folder'],
-          "ondate" => ['folder1', 'folder2']
-        }
-      )
+        [
+          Project.new('schasse/outdated', 'project_folder'),
+          Project.new('schasse/ondate', 'folder1'),
+          Project.new('schasse/ondate', 'folder2')
+        ])
     end
   end
 end
