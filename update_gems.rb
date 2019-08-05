@@ -5,10 +5,12 @@ require 'singleton'
 require 'net/http'
 require 'json'
 
-class Config
-  attr_accessor :github_token, :update_limit, :repositories, :projects
+Project = Struct.new(:github_repo, :path)
 
-  def initialize(github_token:, update_limit: ,repositories:, projects:)
+class Config
+  attr_accessor :github_token, :update_limit, :projects
+
+  def initialize(github_token:, update_limit:, projects:)
     @github_token = github_token
 
     # maximum number of gems to update
@@ -19,16 +21,9 @@ class Config
         update_limit.to_i
       end
 
-    @repositories = (repositories.split(' ')) || []
-
-    projects_strings = (projects && projects.split(' ')) || []
-
-    @projects = {}
-
-    projects_strings.each do |project_string|
-      repo, project = project_string.split(':')
-      @projects[repo] ||= []
-      @projects[repo] << project
+    @projects = projects.split(' ').map! do |project_string|
+      repo, path = project_string.split ':'
+      Project.new repo, path
     end
   end
 end
@@ -104,8 +99,21 @@ class Git
   end
 
   def self.branch_exists?(branch)
-    system("git rev-parse --verify #{branch}") ||
-      system("git rev-parse --verify origin/#{branch}")
+    local_exists =
+      begin
+        Command.run "git rev-parse --verify #{branch}"
+        true
+      rescue ScriptError
+        false
+      end
+    remote_exists =
+      begin
+        Command.run "git rev-parse --verify origin/#{branch}"
+        true
+      rescue ScriptError
+        false
+      end
+    local_exists || remote_exists
   end
 
   def self.current_branch
@@ -164,13 +172,7 @@ class GemUpdater
 
   def update_gems
     RepoFetcher.new(repo).in_repo do
-      if project
-        Dir.chdir(project) do
-          run_gems_update
-        end
-      else
-        run_gems_update
-      end
+      run_gems_update
     end
   end
 
@@ -196,7 +198,13 @@ class GemUpdater
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
         robust_master_merge
-        Command.run "bundle update --#{segment} #{gem}"
+        if project
+          Dir.chdir(project) do
+            Command.run "bundle update --#{segment} #{gem}"
+          end
+        else
+          Command.run "bundle update --#{segment} #{gem}"
+        end
         Git.commit "update #{gem}"
         Git.push
         sleep 2 # GitHub needs some time ;)
@@ -273,14 +281,8 @@ def update_gems
   directory = 'repositories_cache'
   Dir.mkdir directory unless Dir.exist? directory
   Dir.chdir directory do
-    Configuration.repositories.each do |repo|
-      unless Configuration.projects[repo].to_a.empty?
-        Configuration.projects[repo].each do |project|
-          GemUpdater.new(repo, project).update_gems
-        end
-      else
-        GemUpdater.new(repo).update_gems
-      end
+    Configuration.projects.each do |project|
+      GemUpdater.new(project.github_repo, project.path).update_gems
     end
   end
 end
