@@ -1,0 +1,6 @@
+# ignore everything
+*
+
+# but
+!update_gems.rb
+!spec/*

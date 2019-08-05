@@ -23,5 +23,11 @@ example pull request.
 
 ![](https://github.com/schasse/gem_updater/blob/master/logo/example_pull_request.png)
 
-## Warning
-Don't run the tests locally outside of Docker since it adjusts the local gitconfig
+## Development
+
+Running the tests:
+
+``` shell
+docker build --tag schasse/gem_updater .
+docker run schasse/gem_updater bash -c 'cd /usr/lib/gem_updater && rspec'
+```
