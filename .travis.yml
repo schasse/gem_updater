@@ -1,11 +1,11 @@
 sudo: false
 language: ruby
-rvm:
-  - 2.5.1
+services:
+  - docker
 before_install:
-  - gem install bundler -v 1.16.2
-  - gem install rspec -v 3.5.0
-script: rspec
+  - export IMAGE="schasse/gem_updater:${TRAVIS_BRANCH}-${TRAVIS_COMMIT}"
+  - docker build --tag $IMAGE .
 env: VERBOSE=true
+script: docker run $IMAGE bash -c 'cd /usr/lib/gem_updater && rspec'
 notifications:
-    email: false
+  email: false
