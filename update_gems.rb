@@ -32,8 +32,10 @@ class Command
   def self.run(command, approve_exitcode: true)
     Log.debug command
     output = `#{command} 2>&1`
+    if !$?.success? && approve_exitcode
+      raise ScriptError, "COMMAND FAILED: #{command}\n#{output}"
+    end
     Log.debug output
-    raise ScriptError, "COMMAND FAILED: #{command}" if approve_exitcode && !$?.success?
     output
   end
 end
@@ -92,31 +94,13 @@ class Git
 
   def self.change_branch(branch)
     working_branch = current_branch
-    if branch_exists? branch
-      Command.run "git checkout #{branch}"
-    else
-      Command.run "git checkout -b #{branch}"
-    end
+    Command.run "git checkout -b #{branch}"
     yield branch
     Command.run "git checkout #{working_branch}"
   end
 
-  def self.branch_exists?(branch)
-    local_exists =
-      begin
-        Command.run "git rev-parse --verify #{branch}"
-        true
-      rescue ScriptError
-        false
-      end
-    remote_exists =
-      begin
-        Command.run "git rev-parse --verify origin/#{branch}"
-        true
-      rescue ScriptError
-        false
-      end
-    local_exists || remote_exists
+  def self.delete_branch(branch)
+    Command.run "git branch -D #{branch}", approve_exitcode: false
   end
 
   def self.current_branch
@@ -129,15 +113,11 @@ class Git
   end
 
   def self.push
-    Command.run "git push origin #{current_branch}"
+    Command.run "git push origin #{current_branch} --force-with-lease"
   end
 
   def self.pull
     Command.run "git pull origin #{current_branch}"
-  end
-
-  def self.merge(branch)
-    Command.run "GIT_MERGE_AUTOEDIT=no git pull origin #{branch}"
   end
 
   def self.pull_request(message)
@@ -153,10 +133,6 @@ class Git
   def self.clone_github(repo)
     Command.run "git clone git@github.com:#{repo}.git"
   end
-
-  def self.reset
-    Command.run 'git reset --hard'
-  end
 end
 
 class GemUpdater
@@ -170,7 +146,6 @@ class GemUpdater
     outdated_gems = nil
     Dir.chdir(path) do
       Command.run 'bundle install'
-      # update_ruby
       outdated_gems = Outdated.outdated_gems
     end
     Log.debug "back in #{`pwd`}"
@@ -189,24 +164,12 @@ class GemUpdater
 
     attr_reader :repo, :path
 
-    def update_ruby
-      Git.change_branch 'update_ruby' do
-        Log.info 'updating ruby version'
-        robust_master_merge
-        Command.run 'bundle update --ruby'
-        Git.commit 'update ruby version'
-        Git.push
-        sleep 2 # GitHub needs some time ;)
-        Git.pull_request('[GemUpdater] update ruby version')
-      end
-    end
-
     def update_single_gem(gem_stats)
       gem = gem_stats[:gem]
       segment = gem_stats[:segment]
+      Git.delete_branch "update_#{gem}"
       Git.change_branch "update_#{gem}" do
         Log.info "updating gem #{gem}"
-        robust_master_merge
         Log.debug "cd #{path}"
         Dir.chdir(path) do
           Command.run "bundle update --#{segment} #{gem}"
@@ -220,13 +183,6 @@ class GemUpdater
         end
         Log.debug "back in #{`pwd`}"
       end
-    end
-
-    def robust_master_merge
-      Git.merge 'master'
-    rescue ScriptError # merge conflicts...
-      Git.checkout 'master', 'Gemfile.lock'
-      Git.commit 'merge master'
     end
 
     def gem_uri(gem)
