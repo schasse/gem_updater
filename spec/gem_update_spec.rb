@@ -15,7 +15,7 @@ RSpec.describe '#update_gems' do
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
       expect(Git).to receive(:pull_request).with(
-        /\[GemUpdater\]\[project_folder\] update schlib/
+        /\[GemUpdater\]\[project_folder\] update gems/
       )
       update_gems
     end
@@ -33,7 +33,7 @@ RSpec.describe '#update_gems' do
 
     it 'pushes a new branch and creates a pr for the repository' do
       expect(Git).to receive(:push).once
-      expect(Git).to receive(:pull_request).with(/\[GemUpdater\] update schlib/)
+      expect(Git).to receive(:pull_request).with(/\[GemUpdater\] update gems/)
       update_gems
     end
   end
