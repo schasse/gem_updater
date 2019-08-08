@@ -29,9 +29,14 @@ class Config
 end
 
 class Command
-  def self.run(command, approve_exitcode: true)
+  def self.run(command, approve_exitcode: true, rbenv: false)
     Log.debug command
-    output = `#{command} 2>&1`
+    output =
+      if rbenv
+        `bash -lc '#{command}' 2>&1`
+      else
+        `#{command} 2>&1`
+      end
     if !$?.success? && approve_exitcode
       raise ScriptError, "COMMAND FAILED: #{command}\n#{output}"
     end
@@ -147,7 +152,7 @@ class GemUpdater
     Log.debug "cd #{path}"
     outdated_gems = nil
     Dir.chdir(path) do
-      Command.run 'bundle install'
+      Command.run 'bundle install', rbenv: true
       outdated_gems = Outdated.outdated_gems
     end
     Log.debug "back in #{`pwd`}"
@@ -189,7 +194,7 @@ class GemUpdater
       Log.info "updating gem #{gem}"
       Log.debug "cd #{path}"
       Dir.chdir(path) do
-        Command.run "bundle update --#{segment} #{gem}"
+        Command.run "bundle update --#{segment} #{gem}", rbenv: true
         Git.commit "update #{gem}"
       end
       Log.debug "back in #{`pwd`}"
@@ -224,9 +229,11 @@ class Outdated
     def outdated(segment)
       output =
         if segment.nil?
-          Command.run('bundle outdated', approve_exitcode: false)
+          Command.run('bundle outdated', approve_exitcode: false, rbenv: true)
         else
-          Command.run("bundle outdated --#{segment}", approve_exitcode: false)
+          Command.run(
+            "bundle outdated --#{segment}",
+            approve_exitcode: false, rbenv: true)
         end
       output.lines.map do |line|
         regex = /\ \ \*\ (\p{Graph}+)\ \(newest\ ([\d\.]+)\,\ installed ([\d\.]+)/
