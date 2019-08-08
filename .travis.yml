@@ -6,6 +6,6 @@ before_install:
   - export IMAGE="schasse/gem_updater:${TRAVIS_BRANCH}-${TRAVIS_COMMIT}"
   - docker build --tag $IMAGE .
 env: VERBOSE=true
-script: docker run $IMAGE bash -c 'cd /usr/lib/gem_updater && rspec'
+script: docker run $IMAGE bash -lc 'cd /usr/lib/gem_updater && rspec'
 notifications:
   email: false
