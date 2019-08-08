@@ -113,7 +113,9 @@ class Git
   end
 
   def self.push
-    Command.run "git push origin #{current_branch} --force-with-lease"
+    Command.run(
+      "git push origin #{current_branch} --force-with-lease",
+      approve_exitcode: false)
   end
 
   def self.pull
@@ -149,9 +151,7 @@ class GemUpdater
       outdated_gems = Outdated.outdated_gems
     end
     Log.debug "back in #{`pwd`}"
-    outdated_gems.take(Configuration.update_limit).each do |gem_stats|
-      update_single_gem gem_stats
-    end
+    update_multiple_gems_with_pr outdated_gems
   end
 
   def update_gems
@@ -164,25 +164,35 @@ class GemUpdater
 
     attr_reader :repo, :path
 
+    def update_multiple_gems_with_pr(outdated_gems)
+      Git.delete_branch "update_#{path}_gems"
+      Git.change_branch "update_#{path}_gems" do
+        outdated_gems.take(Configuration.update_limit).each do |gem_stats|
+          update_single_gem gem_stats
+        end
+        Git.push
+        sleep 2 # GitHub needs some time ;)
+        description = outdated_gems.reduce('') do |string, gem_stats|
+          gem = gem_stats[:gem]
+          string + "\n* #{gem}: #{gem_uri(gem)} #{change_log(gem)}"
+        end
+        Git.pull_request(
+          "[GemUpdater]#{path != '.' ? "[" + path + "]" : ""} update gems\n\n" +
+          description
+        )
+      end
+    end
+
     def update_single_gem(gem_stats)
       gem = gem_stats[:gem]
       segment = gem_stats[:segment]
-      Git.delete_branch "update_#{gem}"
-      Git.change_branch "update_#{gem}" do
-        Log.info "updating gem #{gem}"
-        Log.debug "cd #{path}"
-        Dir.chdir(path) do
-          Command.run "bundle update --#{segment} #{gem}"
-          Git.commit "update #{gem}"
-          Git.push
-          sleep 2 # GitHub needs some time ;)
-          Git.pull_request(
-            "[GemUpdater]#{path != '.' ? "[" + path + "]" : ""} update "\
-            "#{gem}\n\n#{gem_uri(gem)}\n\n#{change_log(gem)}"
-          )
-        end
-        Log.debug "back in #{`pwd`}"
+      Log.info "updating gem #{gem}"
+      Log.debug "cd #{path}"
+      Dir.chdir(path) do
+        Command.run "bundle update --#{segment} #{gem}"
+        Git.commit "update #{gem}"
       end
+      Log.debug "back in #{`pwd`}"
     end
 
     def gem_uri(gem)
