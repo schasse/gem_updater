@@ -160,6 +160,7 @@ class GemUpdater
   end
 
   def update_gems
+    Log.info "updating repo #{repo}"
     RepoFetcher.new(repo).in_repo do
       run_gems_update
     end
@@ -172,15 +173,14 @@ class GemUpdater
     def update_multiple_gems_with_pr(outdated_gems)
       Git.delete_branch "update_#{path}_gems"
       Git.change_branch "update_#{path}_gems" do
-        outdated_gems.take(Configuration.update_limit).each do |gem_stats|
+        gems = outdated_gems.take(Configuration.update_limit)
+        gems.each do |gem_stats|
           update_single_gem gem_stats
         end
         Git.push
         sleep 2 # GitHub needs some time ;)
-        description = outdated_gems.reduce('') do |string, gem_stats|
-          gem = gem_stats[:gem]
-          string + "\n* #{gem}: #{gem_uri(gem)} #{change_log(gem)}"
-        end
+        Log.debug "cd #{path}"
+        description = pr_description gems.map { |gem_stats| gem_stats[:gem] }
         Git.pull_request(
           "[GemUpdater]#{path != '.' ? "[" + path + "]" : ""} update gems\n\n" +
           description
@@ -200,6 +200,12 @@ class GemUpdater
       Log.debug "back in #{`pwd`}"
     end
 
+    def pr_description(gems)
+      gems.reduce('') do |string, gem|
+        string + "\n* #{gem}: #{gem_uri(gem)} #{change_log(gem)}"
+      end
+    end
+
     def gem_uri(gem)
       info =
         JSON.parse(
@@ -211,9 +217,13 @@ class GemUpdater
     end
 
     def change_log(gem)
+      Log.debug "cd #{path}"
       from_version, to_version =
-        Command.run('git diff --word-diff=plain master Gemfile.lock')
-          .scan(/^\ *#{gem}\ \[\-\((.+)\)\-\]\{\+\((.+)\)\+\}$/).first
+        Dir.chdir(path) do
+          Command.run('git diff --word-diff=plain master Gemfile.lock')
+            .scan(/^\ *#{gem}\ \[\-\((.+)\)\-\]\{\+\((.+)\)\+\}$/).first
+        end
+      Log.debug "back in #{`pwd`}"
       "#{gem_uri(gem)}/compare/v#{from_version}...v#{to_version} or " +
         "#{gem_uri(gem)}/compare/#{from_version}...#{to_version}"
     end
