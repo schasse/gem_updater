@@ -8,8 +8,7 @@ RSpec.describe '#update_gems' do
       Configuration =
         Config.new(
           github_token: 'test',
-          update_limit: nil,
-          projects: 'schasse/outdated:project_folder')
+          projects: 'schasse/outdated:2:project_folder')
     end
 
     it 'pushes a new branch and creates a pr for the repository' do
@@ -26,7 +25,6 @@ RSpec.describe '#update_gems' do
       Configuration =
         Config.new(
           github_token: 'test',
-          update_limit: nil,
           projects: 'schasse/outdated'
         )
     end
@@ -44,7 +42,6 @@ RSpec.describe Outdated do
     Configuration =
       Config.new(
         github_token: 'test',
-        update_limit: nil,
         projects: 'schasse/outdated')
   end
 
@@ -104,7 +101,7 @@ OUT
     end
 
     it 'sorts for the most important versions' do
-      expect(Outdated.outdated_gems)
+      expect(Outdated.outdated_gems(nil))
         .to eq [
               { gem: 'domain_name', segment: 'patch', outdated_level: 9275 },
               { gem: 'rest-client', segment: 'patch', outdated_level: 2 },
@@ -133,7 +130,6 @@ RSpec.describe Config do
     before do
       @without_projects_config = {
         github_token: 'test',
-        update_limit: nil,
         projects: 'schasse/outdated'
       }
     end
@@ -141,8 +137,8 @@ RSpec.describe Config do
     it 'parses configuration correctly' do
       config = Config.new(@without_projects_config)
       expect(config.github_token).to eq('test')
-      expect(config.update_limit).to eq(2)
-      expect(config.projects).to eq([Project.new('schasse/outdated')])
+      expect(config.projects).
+        to eq([Project.new('schasse/outdated', 2, '.', nil)])
     end
   end
 
@@ -150,20 +146,18 @@ RSpec.describe Config do
     before do
       @with_projects_config = {
         github_token: 'test',
-        update_limit: 4,
-        projects: 'schasse/outdated:project_folder schasse/ondate:folder1 schasse/ondate:folder2'
+        projects: 'schasse/outdated:4:project_folder schasse/ondate:4:folder1 schasse/ondate:4:folder2:test,development'
       }
     end
 
     it 'parses configuration correctly' do
       config = Config.new(@with_projects_config)
       expect(config.github_token).to eq('test')
-      expect(config.update_limit).to eq(4)
       expect(config.projects).to eq(
         [
-          Project.new('schasse/outdated', 'project_folder'),
-          Project.new('schasse/ondate', 'folder1'),
-          Project.new('schasse/ondate', 'folder2')
+          Project.new('schasse/outdated', 4, 'project_folder', nil),
+          Project.new('schasse/ondate', 4, 'folder1', nil),
+          Project.new('schasse/ondate', 4, 'folder2', ['test', 'development'])
         ])
     end
   end
