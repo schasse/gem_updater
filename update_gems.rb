@@ -29,9 +29,14 @@ class Config
 end
 
 class Command
-  def self.run(command, approve_exitcode: true)
+  def self.run(command, approve_exitcode: true, rbenv: false)
     Log.debug command
-    output = `#{command} 2>&1`
+    output =
+      if rbenv
+        `bash -lc '#{command}' 2>&1`
+      else
+        `#{command} 2>&1`
+      end
     if !$?.success? && approve_exitcode
       raise ScriptError, "COMMAND FAILED: #{command}\n#{output}"
     end
@@ -147,7 +152,7 @@ class GemUpdater
     Log.debug "cd #{path}"
     outdated_gems = nil
     Dir.chdir(path) do
-      Command.run 'bundle install'
+      Command.run 'bundle install', rbenv: true
       outdated_gems = Outdated.outdated_gems
     end
     Log.debug "back in #{`pwd`}"
@@ -155,6 +160,7 @@ class GemUpdater
   end
 
   def update_gems
+    Log.info "updating repo #{repo}"
     RepoFetcher.new(repo).in_repo do
       run_gems_update
     end
@@ -167,15 +173,14 @@ class GemUpdater
     def update_multiple_gems_with_pr(outdated_gems)
       Git.delete_branch "update_#{path}_gems"
       Git.change_branch "update_#{path}_gems" do
-        outdated_gems.take(Configuration.update_limit).each do |gem_stats|
+        gems = outdated_gems.take(Configuration.update_limit)
+        gems.each do |gem_stats|
           update_single_gem gem_stats
         end
         Git.push
         sleep 2 # GitHub needs some time ;)
-        description = outdated_gems.reduce('') do |string, gem_stats|
-          gem = gem_stats[:gem]
-          string + "\n* #{gem}: #{gem_uri(gem)} #{change_log(gem)}"
-        end
+        Log.debug "cd #{path}"
+        description = pr_description gems.map { |gem_stats| gem_stats[:gem] }
         Git.pull_request(
           "[GemUpdater]#{path != '.' ? "[" + path + "]" : ""} update gems\n\n" +
           description
@@ -189,10 +194,16 @@ class GemUpdater
       Log.info "updating gem #{gem}"
       Log.debug "cd #{path}"
       Dir.chdir(path) do
-        Command.run "bundle update --#{segment} #{gem}"
+        Command.run "bundle update --#{segment} #{gem}", rbenv: true
         Git.commit "update #{gem}"
       end
       Log.debug "back in #{`pwd`}"
+    end
+
+    def pr_description(gems)
+      gems.reduce('') do |string, gem|
+        string + "\n* #{gem}: #{gem_uri(gem)} #{change_log(gem)}"
+      end
     end
 
     def gem_uri(gem)
@@ -206,9 +217,13 @@ class GemUpdater
     end
 
     def change_log(gem)
+      Log.debug "cd #{path}"
       from_version, to_version =
-        Command.run('git diff --word-diff=plain master Gemfile.lock')
-          .scan(/^\ *#{gem}\ \[\-\((.+)\)\-\]\{\+\((.+)\)\+\}$/).first
+        Dir.chdir(path) do
+          Command.run('git diff --word-diff=plain master Gemfile.lock')
+            .scan(/^\ *#{gem}\ \[\-\((.+)\)\-\]\{\+\((.+)\)\+\}$/).first
+        end
+      Log.debug "back in #{`pwd`}"
       "#{gem_uri(gem)}/compare/v#{from_version}...v#{to_version} or " +
         "#{gem_uri(gem)}/compare/#{from_version}...#{to_version}"
     end
@@ -224,9 +239,11 @@ class Outdated
     def outdated(segment)
       output =
         if segment.nil?
-          Command.run('bundle outdated', approve_exitcode: false)
+          Command.run('bundle outdated', approve_exitcode: false, rbenv: true)
         else
-          Command.run("bundle outdated --#{segment}", approve_exitcode: false)
+          Command.run(
+            "bundle outdated --#{segment}",
+            approve_exitcode: false, rbenv: true)
         end
       output.lines.map do |line|
         regex = /\ \ \*\ (\p{Graph}+)\ \(newest\ ([\d\.]+)\,\ installed ([\d\.]+)/
