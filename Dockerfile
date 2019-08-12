@@ -32,11 +32,13 @@ RUN bash -lc 'rbenv install 2.4.2'
 RUN bash -lc 'rbenv install 2.4.5'
 RUN bash -lc 'rbenv install 2.5.0'
 RUN bash -lc 'rbenv install 2.5.1'
+RUN bash -lc 'rbenv install 2.6.3'
 
 RUN bash -lc 'rbenv shell 2.4.2 && gem install bundler --version 1.16.2'
 RUN bash -lc 'rbenv shell 2.4.5 && gem install bundler --version 1.16.2'
 RUN bash -lc 'rbenv shell 2.5.0 && gem install bundler --version 1.16.2'
 RUN bash -lc 'rbenv shell 2.5.1 && gem install bundler --version 1.16.2'
+RUN bash -lc 'rbenv shell 2.6.3 && gem install bundler --version 2.0.1'
 
 RUN bash -lc 'rbenv global 2.5.1' # update_gems.rb will be using it
 RUN bash -lc 'gem install bundler --version 1.16.2 && gem install rspec --version 3.8.0'
