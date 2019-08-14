@@ -29,7 +29,7 @@ class Command
     Log.debug command
     output =
       if rbenv
-        `bash -lc '#{command}' 2>&1`
+        `bash -lc 'unset RBENV_VERSION && #{command}' 2>&1`
       else
         `#{command} 2>&1`
       end
@@ -147,7 +147,7 @@ class GemUpdater
   end
 
   def update_gems
-    Log.info "updating repo #{repo}"
+    Log.info "repo #{repo}"
     RepoFetcher.new(repo).in_repo do
       update_multiple_gems_with_pr
     end
