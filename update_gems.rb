@@ -4,26 +4,22 @@ require 'logger'
 require 'singleton'
 require 'net/http'
 require 'json'
+require 'yaml'
 
-Project = Struct.new(:github_repo, :path)
+Project = Struct.new(:github_repo, :update_limit, :path, :groups)
 
 class Config
-  attr_accessor :github_token, :update_limit, :projects
+  attr_accessor :github_token, :projects
 
-  def initialize(github_token:, update_limit:, projects:)
+  def initialize(github_token:, projects:)
     @github_token = github_token
 
-    # maximum number of gems to update
-    @update_limit =
-      if update_limit.nil?
-        2
-      else
-        update_limit.to_i
-      end
-
-    @projects = projects.split(' ').map! do |project_string|
-      repo, path = project_string.split ':'
-      Project.new repo, path
+    @projects = YAML.safe_load(projects).map! do |project|
+      Project.new(
+        project['repo'],
+        (project['update_limit'] || 2).to_i,
+        (project['path'] || '.'),
+        project['groups'])
     end
   end
 end
@@ -33,7 +29,7 @@ class Command
     Log.debug command
     output =
       if rbenv
-        `bash -lc '#{command}' 2>&1`
+        `bash -lc 'unset RBENV_VERSION && #{command}' 2>&1`
       else
         `#{command} 2>&1`
       end
@@ -143,49 +139,63 @@ class Git
 end
 
 class GemUpdater
-  def initialize(repo, path)
-    @repo = repo
-    @path = path || '.'
-  end
-
-  def run_gems_update
-    Log.debug "cd #{path}"
-    outdated_gems = nil
-    Dir.chdir(path) do
-      Command.run 'bundle install', rbenv: true
-      outdated_gems = Outdated.outdated_gems
-    end
-    Log.debug "back in #{`pwd`}"
-    update_multiple_gems_with_pr outdated_gems
+  def initialize(project)
+    @repo = project.github_repo
+    @path = project.path
+    @update_limit = project.update_limit
+    @groups = project.groups
   end
 
   def update_gems
-    Log.info "updating repo #{repo}"
+    Log.info "repo #{repo}"
     RepoFetcher.new(repo).in_repo do
-      run_gems_update
+      update_multiple_gems_with_pr
     end
   end
 
   private
 
-    attr_reader :repo, :path
+    attr_reader :repo, :path, :update_limit, :groups
 
-    def update_multiple_gems_with_pr(outdated_gems)
-      Git.delete_branch "update_#{path}_gems"
-      Git.change_branch "update_#{path}_gems" do
-        gems = outdated_gems.take(Configuration.update_limit)
-        gems.each do |gem_stats|
+    def outdated_gems
+      return @outdated_gems unless @outdated_gems.nil?
+      Log.debug "cd #{path}"
+      gems = nil
+      Dir.chdir(path) do
+        Command.run 'bundle install', rbenv: true
+        gems = Outdated.outdated_gems groups
+      end
+      Log.debug "back in #{`pwd`}"
+      @outdated_gems = gems.take update_limit
+    end
+
+    def update_multiple_gems_with_pr
+      Git.delete_branch update_branch
+      Git.change_branch update_branch do
+        outdated_gems.each do |gem_stats|
           update_single_gem gem_stats
         end
         Git.push
         sleep 2 # GitHub needs some time ;)
         Log.debug "cd #{path}"
-        description = pr_description gems.map { |gem_stats| gem_stats[:gem] }
+        description =
+          pr_description outdated_gems.map { |gem_stats| gem_stats[:gem] }
         Git.pull_request(
           "[GemUpdater]#{path != '.' ? "[" + path + "]" : ""} update gems\n\n" +
           description
         )
       end
+    end
+
+    def update_branch
+      path_infix =
+        if path == '.'
+          ''
+        else
+          "_#{path}"
+        end
+      groups_infix = groups.to_a.reduce { |group| "_#{group}"}
+      "update#{path_infix}#{groups_infix}_gems"
     end
 
     def update_single_gem(gem_stats)
@@ -231,20 +241,31 @@ end
 
 class Outdated
   class << self
-    def outdated_gems
-      (outdated('patch') + outdated('minor') + outdated('major'))
-        .uniq { |gem_stats| gem_stats[:gem] }
+    def outdated_gems(groups)
+      (
+        outdated('patch', groups) +
+        outdated('minor', groups) +
+        outdated('major', groups)
+      ).uniq { |gem_stats| gem_stats[:gem] }
     end
 
-    def outdated(segment)
-      output =
-        if segment.nil?
-          Command.run('bundle outdated', approve_exitcode: false, rbenv: true)
+    def outdated(segment, groups)
+      group_option =
+        if groups.nil?
+          ''
         else
-          Command.run(
-            "bundle outdated --#{segment}",
-            approve_exitcode: false, rbenv: true)
+          " --with='#{groups.join(' ')}'"
         end
+      segment_option =
+        if segment.nil?
+          ''
+        else
+          " --#{segment}"
+        end
+      output =
+        Command.run(
+          "bundle outdated#{group_option}#{segment_option}",
+          approve_exitcode: false, rbenv: true)
       output.lines.map do |line|
         regex = /\ \ \*\ (\p{Graph}+)\ \(newest\ ([\d\.]+)\,\ installed ([\d\.]+)/
         gem, newest, installed = line.scan(regex)&.first
@@ -274,20 +295,19 @@ def update_gems
   Log.debug "cd #{directory}"
   Dir.chdir directory do
     Configuration.projects.each do |project|
-      GemUpdater.new(project.github_repo, project.path).update_gems
+      GemUpdater.new(project).update_gems
     end
   end
   Log.debug "back in #{`pwd`}"
 end
 
 if $PROGRAM_NAME == __FILE__
-  ENV['PROJECTS'] || ENV['REPOSITORIES'] || puts('please provide REPOSITORIES to update')
+  ENV['PROJECTS'] || puts('please provide PROJECTS to update')
   ENV['GITHUB_TOKEN'] || puts('please provide GITHUB_TOKEN')
 
   Configuration = Config.new(
     github_token: ENV['GITHUB_TOKEN'],
-    update_limit: ENV['UPDATE_LIMIT'],
-    projects: ENV['PROJECTS'] || ENV['REPOSITORIES']
+    projects: ENV['PROJECTS']
   )
 
   Log =
