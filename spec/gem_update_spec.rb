@@ -8,7 +8,12 @@ RSpec.describe '#update_gems' do
       Configuration =
         Config.new(
           github_token: 'test',
-          projects: 'schasse/outdated:2:project_folder')
+          projects: <<~EOF
+            - repo: schasse/outdated
+              update_limit: 2
+              path: project_folder
+          EOF
+        )
     end
 
     it 'pushes a new branch and creates a pr for the repository' do
@@ -25,7 +30,7 @@ RSpec.describe '#update_gems' do
       Configuration =
         Config.new(
           github_token: 'test',
-          projects: 'schasse/outdated'
+          projects: '- repo: schasse/outdated'
         )
     end
 
@@ -42,7 +47,7 @@ RSpec.describe Outdated do
     Configuration =
       Config.new(
         github_token: 'test',
-        projects: 'schasse/outdated')
+        projects: '- repo: schasse/outdated')
   end
 
   describe '#outdated_gems' do
@@ -130,7 +135,7 @@ RSpec.describe Config do
     before do
       @without_projects_config = {
         github_token: 'test',
-        projects: 'schasse/outdated'
+        projects: '- repo: schasse/outdated'
       }
     end
 
@@ -146,7 +151,20 @@ RSpec.describe Config do
     before do
       @with_projects_config = {
         github_token: 'test',
-        projects: 'schasse/outdated:4:project_folder schasse/ondate:4:folder1 schasse/ondate:4:folder2:test,development'
+        projects: <<~EOF
+          - repo: schasse/outdated
+            update_limit: 4
+            path: project_folder
+          - repo: schasse/ondate
+            update_limit: 4
+            path: folder1
+          - repo: schasse/ondate
+            update_limit: 4
+            path: folder2
+            groups:
+              - test
+              - development
+        EOF
       }
     end
 

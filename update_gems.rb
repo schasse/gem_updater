@@ -4,6 +4,7 @@ require 'logger'
 require 'singleton'
 require 'net/http'
 require 'json'
+require 'yaml'
 
 Project = Struct.new(:github_repo, :update_limit, :path, :groups)
 
@@ -13,13 +14,12 @@ class Config
   def initialize(github_token:, projects:)
     @github_token = github_token
 
-    @projects = projects.split(' ').map! do |project_string|
-      repo, update_limit, path, groups = project_string.split ':'
+    @projects = YAML.safe_load(projects).map! do |project|
       Project.new(
-        repo,
-        (update_limit || 2).to_i,
-        (path || '.'),
-        groups&.split(','))
+        project['repo'],
+        (project['update_limit'] || 2).to_i,
+        (project['path'] || '.'),
+        project['groups'])
     end
   end
 end
@@ -307,7 +307,7 @@ if $PROGRAM_NAME == __FILE__
 
   Configuration = Config.new(
     github_token: ENV['GITHUB_TOKEN'],
-    projects: ENV['PROJECTS'] || ENV['REPOSITORIES']
+    projects: ENV['PROJECTS']
   )
 
   Log =
