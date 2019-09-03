@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # install rbenv, ruby build plugin and bundler ruby plugin
 ENV RBENV_V=v1.1.2
-ENV RUBY_BUILD_V=v20190615
+ENV RUBY_BUILD_V=v20190828
 ENV BUNDLER_RUBY_V=v1.0.0
 
 RUN git clone --branch $RBENV_V --depth 1 https://github.com/rbenv/rbenv.git $HOME/.rbenv \
